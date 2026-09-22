@@ -1,0 +1,11 @@
+.env
+金鑰.txt
+__pycache__/
+
+# macOS / Office 暫存
+.DS_Store
+~$*
+
+# 打包產物（每次都能重新產生，不需要進版控）
+output/教室電腦安裝包/
+output/教室電腦安裝包.zip
