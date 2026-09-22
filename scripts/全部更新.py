@@ -23,7 +23,8 @@ def main():
         print()
     print("全部更新完成。")
     print("Canva：把 output/canva批量資料.csv 重新上傳到模板的大量建立即可。")
-    print("自動播放：把更新後的 data/ 與 output/播放/ 複製到教室電腦上覆蓋舊檔即可（見 windows/README_安裝步驟.md）。")
+    print("自動播放：接著 push 上 GitHub，教室電腦隔天早上就會自動播到新內容：")
+    print('    git add -A && git commit -m "新增成語" && git push')
 
 if __name__ == "__main__":
     main()

@@ -345,12 +345,45 @@
       showSlide();
     }
 
+    // 字數多的成語（例如「醉翁之意不在酒」）或比較窄的螢幕，大字可能會超出畫面寬度。
+    // 這裡量完真實寬度後按比例縮小，確保任何字數、任何解析度都不會被切到。
+    // 注意：剛換頁的那一個 frame 有時還沒完成版面配置，量到的寬度會是 0，
+    // 這時不能判定「沒有超出」，必須等下一個 frame 重量，否則會漏縮放。
+    function fitToWidth(attempt){
+      attempt = attempt || 0;
+      const cs = getComputedStyle(stage);
+      const avail = stage.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+      if (!(avail > 0)) return;
+      const targets = stage.querySelectorAll(".glyphs, .glyph-fallback .ch-line, .review-ch");
+      let notLaidOut = false;
+      targets.forEach(function(el){
+        el.style.transform = "";
+        const w = el.scrollWidth;
+        if (w === 0) { notLaidOut = true; return; }
+        if (w > avail) {
+          el.style.transformOrigin = "center center";
+          el.style.transform = "scale(" + (avail / w).toFixed(3) + ")";
+        }
+      });
+      if (notLaidOut && attempt < 10) {
+        setTimeout(function(){ fitToWidth(attempt + 1); }, 50);
+      }
+    }
+
     function fadeIn(html){
       stage.classList.remove("show");
       void stage.offsetWidth;
       stage.innerHTML = html;
-      requestAnimationFrame(function(){ stage.classList.add("show"); });
+      // 這裡刻意用 setTimeout 而不是 requestAnimationFrame：視窗被遮蔽或最小化時
+      // rAF 會停擺，.show 就永遠加不上去、畫面整片空白，而換頁的計時器還在跑。
+      // setTimeout 在背景仍會執行，畫面不會卡在全黑。
+      setTimeout(function(){
+        fitToWidth();
+        stage.classList.add("show");
+      }, 20);
     }
+
+    window.addEventListener("resize", fitToWidth);
 
     function renderIdleScreen(reason){
       const startT = (SCHEDULE.播放時段 && SCHEDULE.播放時段.開始) || "07:30";
