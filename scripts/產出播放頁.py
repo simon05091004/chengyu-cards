@@ -20,6 +20,7 @@
 輸出的 index.html 才會更新（詳見 data/播放設定.json 的備註）。
 """
 import json, os
+from datetime import date, timedelta
 import 標籤 as 標籤模組
 
 ROOT      = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -367,20 +368,45 @@ HTML_TEMPLATE = r"""<!doctype html>
            + '</div>';
     }
 
+    // 從「自動推進.起始日」起算，每經過一個上課日就往後推一則。
+    // 用的是跟播放判斷同一份停課日清單，所以週末、國定假日、臨時停課
+    // 都不會消耗進度。
+    function 自動推進序號(now){
+      const cfg = IDIOMS.自動推進;
+      const start = new Date(cfg.起始日 + "T00:00:00");
+      if (isNaN(start.getTime())) return -1;
+
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      let n = 0, guard = 0;
+      const d = new Date(start.getTime());
+      while (d <= today && guard < 3000) {
+        if (isSchoolDay(d).ok) n++;
+        d.setDate(d.getDate() + 1);
+        guard++;
+      }
+      const base = (cfg.起始序號 || 1) - 1;
+      return base + Math.max(0, n - 1);
+    }
+
     function buildDeck(){
       const list = IDIOMS.成語 || [];
       if (!list.length) return [];
       // 今日成語的決定方式，依序：
-      //   1. 頂層「今日序號」（1 起算，對應標籤上的（一）（二）…）
+      //   1. 頂層「今日序號」（1 起算）——手動釘住某一則，優先權最高
       //   2. 頂層「今日編號」（例如 "L01-02"）
-      //   3. 都沒設就用陣列最後一筆
+      //   3. 頂層「自動推進」——從起始日算起，每過一個上課日往後推一則
+      //   4. 都沒設就用陣列最後一筆
       let todayIdx = -1;
       if (IDIOMS.今日序號) {
         todayIdx = IDIOMS.今日序號 - 1;
       } else if (IDIOMS.今日編號) {
         todayIdx = list.findIndex(function(x){ return x.編號===IDIOMS.今日編號; });
+      } else if (IDIOMS.自動推進 && IDIOMS.自動推進.起始日) {
+        todayIdx = 自動推進序號(new Date());
       }
-      if (todayIdx < 0 || todayIdx >= list.length) todayIdx = list.length - 1;
+      if (todayIdx < 0) todayIdx = list.length - 1;
+      // 成語用完了就停在最後一則，等老師補新的，不要繞回頭重來
+      if (todayIdx >= list.length) todayIdx = list.length - 1;
 
       const today = list[todayIdx];
       const tag = today.標籤 || "";
@@ -584,22 +610,60 @@ def main():
 
     成語們 = idioms.get("成語", [])
     total = len(成語們)
-    if idioms.get("今日序號"):
-        idx = idioms["今日序號"] - 1
-    elif idioms.get("今日編號"):
-        idx = next((i for i, x in enumerate(成語們) if x["編號"] == idioms["今日編號"]), total - 1)
-    else:
-        idx = total - 1
+
+    def 是上課日(d):
+        if d.weekday() >= 5:
+            return False
+        ds = d.isoformat()
+        r = schedule.get("學期起訖") or {}
+        if r.get("開始") and ds < r["開始"]:
+            return False
+        if r.get("結束") and ds > r["結束"]:
+            return False
+        return not any(x.get("日期") == ds for x in schedule.get("停課日", []))
+
+    def 當日序號(d):
+        """回傳該日要播的陣列索引（0 起算）"""
+        if idioms.get("今日序號"):
+            i = idioms["今日序號"] - 1
+        elif idioms.get("今日編號"):
+            i = next((j for j, x in enumerate(成語們) if x["編號"] == idioms["今日編號"]), total - 1)
+        elif (idioms.get("自動推進") or {}).get("起始日"):
+            cfg = idioms["自動推進"]
+            start = date.fromisoformat(cfg["起始日"])
+            n, cur = 0, start
+            while cur <= d:
+                if 是上課日(cur):
+                    n += 1
+                cur += timedelta(days=1)
+            i = (cfg.get("起始序號", 1) - 1) + max(0, n - 1)
+        else:
+            i = total - 1
+        return min(max(i, 0), total - 1) if total else 0
+
+    today_label = "（無資料）"
     if total:
-        today_label = f"{成語們[idx]['標籤']} {成語們[idx]['成語']}（複習 {idx} 則）"
-    else:
-        today_label = "（無資料）"
+        i = 當日序號(date.today())
+        today_label = f"{成語們[i]['標籤']} {成語們[i]['成語']}（複習 {i} 則）"
     print(f"已產生播放頁，共 {total} 則成語")
     print(f"  本機版 → {OUT}")
     print(f"  線上版 → {DOCS_HTML}（推上 GitHub 後由 Pages 服務）")
     print(f"今日成語：{today_label}")
     print(f"播放時段：{schedule.get('播放時段',{}).get('開始','07:30')}–{schedule.get('播放時段',{}).get('結束','08:30')}")
     print("本機預覽：瀏覽器打開 output/播放/index.html，網址後面加 ?demo=1 可略過時間判斷、強制輪播。")
+
+    if total and (idioms.get("自動推進") or {}).get("起始日") and not idioms.get("今日序號"):
+        print("\n── 接下來的播放排程（自動推進） ──")
+        星期 = "一二三四五六日"
+        d, 顯示, 已印 = date.today(), 0, set()
+        while 顯示 < 12 and d < date.today() + timedelta(days=90):
+            if 是上課日(d):
+                i = 當日序號(d)
+                記號 = "  ← 成語用完，停在最後一則" if i == total - 1 and 顯示 > 0 and (total - 1) in 已印 else ""
+                print(f"  {d} (週{星期[d.weekday()]})  {成語們[i]['標籤']} {成語們[i]['成語']}{記號}")
+                已印.add(i)
+                顯示 += 1
+            d += timedelta(days=1)
 
 
 if __name__ == "__main__":
