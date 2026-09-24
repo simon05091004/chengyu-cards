@@ -5,6 +5,7 @@
 輸出: output/canva批量資料.csv（UTF-8 with BOM，Excel 與 Canva 都能正常開）
 """
 import json, csv, os
+import 標籤 as 標籤模組
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(ROOT, "data", "成語資料.json")
@@ -16,7 +17,7 @@ COLS = ["課次標籤", "成語", "注音", "注音1", "注音2", "注音3", "�
 def row(i):
     ex = i.get("例句", []) + ["", "", ""]
     return {
-        "課次標籤": f"國語　{i['課次']}　成語 {i['序號']}",
+        "課次標籤": i["標籤"],
         "成語": i["成語"],
         "注音": i["注音"],
         **{f"注音{n}": (i["注音"].split() + ["", "", "", ""])[n-1] for n in range(1, 5)},
@@ -31,7 +32,7 @@ def row(i):
     }
 
 def main():
-    db = json.load(open(DATA, encoding="utf-8"))
+    db = 標籤模組.標註(json.load(open(DATA, encoding="utf-8")))
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, "w", encoding="utf-8-sig", newline="") as f:
         w = csv.DictWriter(f, fieldnames=COLS)

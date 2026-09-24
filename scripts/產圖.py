@@ -7,6 +7,7 @@
 """
 import json, os, argparse
 from PIL import Image, ImageDraw, ImageFont
+import 標籤 as 標籤模組
 
 ROOT   = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA   = os.path.join(ROOT, "data", "成語資料.json")
@@ -85,7 +86,7 @@ def make_card(item, out_path, illustration=None):
 
     # 課次標籤
     f_tag = font(F_BOLD, 32)
-    tag = f"國語　{item['課次']}　成語 {item['序號']}"
+    tag = item["標籤"]
     d.rectangle([M, 74, M + d.textlength(tag, font=f_tag) + 44, 128], fill=RED)
     d.text((M + 22, 83), tag, font=f_tag, fill="#FFF8F0")
 
@@ -158,8 +159,7 @@ def main():
 
     if a.投影版:
         globals()["W"], globals()["H_TEXT"] = 1920, 1080
-
-    db = json.load(open(DATA, encoding="utf-8"))
+    db = 標籤模組.標註(json.load(open(DATA, encoding="utf-8")))
     os.makedirs(OUT, exist_ok=True)
     for item in db["成語"]:
         if a.編號 and item["編號"] != a.編號:

@@ -20,6 +20,7 @@
 輸出的 index.html 才會更新（詳見 data/播放設定.json 的備註）。
 """
 import json, os
+import 標籤 as 標籤模組
 
 ROOT      = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA      = os.path.join(ROOT, "data", "成語資料.json")
@@ -358,7 +359,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     }
 
     function renderReview(idiom){
-      return '<div class="tag tag-review">複習・'+escapeHtml(idiom.課次||"")+'</div>'
+      return '<div class="tag tag-review">複習・'+escapeHtml(idiom.標籤||"")+'</div>'
            + '<div class="review-wrap">'
            + '<div class="review-ch">'+escapeHtml(idiom.成語)+'</div>'
            + '<div class="review-zh">'+escapeHtml(idiom.注音||"")+'</div>'
@@ -373,7 +374,7 @@ HTML_TEMPLATE = r"""<!doctype html>
       let todayIdx = todayId ? list.findIndex(function(x){ return x.編號===todayId; }) : -1;
       if (todayIdx < 0) todayIdx = list.length - 1;
       const today = list[todayIdx];
-      const tag = (IDIOMS.科目||"國語") + "．" + (today.課次||"") + "．今日成語";
+      const tag = today.標籤 || "";
       const others = list.filter(function(_,i){ return i!==todayIdx; });
       shuffle(others);
 
@@ -547,7 +548,7 @@ HTML_TEMPLATE = r"""<!doctype html>
 
 
 def main():
-    idioms = json.load(open(DATA, encoding="utf-8"))
+    idioms = 標籤模組.標註(json.load(open(DATA, encoding="utf-8")))
     schedule = json.load(open(SCHEDULE, encoding="utf-8"))
 
     html = HTML_TEMPLATE.replace(

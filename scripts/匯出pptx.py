@@ -5,6 +5,7 @@
 輸出: output/成語卡.pptx（每個成語一頁，文字框都是可編輯的真文字框）
 """
 import json, os
+import 標籤 as 標籤模組
 from pptx import Presentation
 from pptx.util import Emu, Pt
 from pptx.dml.color import RGBColor
@@ -74,7 +75,7 @@ def build(prs, item):
     shape(s, MSO_SHAPE.RECTANGLE, 26, 26, 1868, 1028, None, LINE, 3)
 
     # 課次標籤
-    tag = f"國語　{item['課次']}　成語 {item['序號']}"
+    tag = item["標籤"]
     shape(s, MSO_SHAPE.RECTANGLE, 96, 74, 358, 54, RED)
     text(s, 118, 78, 320, 46, tag, 32, "FFF8F0", True)
 
@@ -110,7 +111,7 @@ def build(prs, item):
         text(s, 166, 943, 1598, 60, item["易錯提醒"], 28, WARNFG)
 
 def main():
-    db = json.load(open(DATA, encoding="utf-8"))
+    db = 標籤模組.標註(json.load(open(DATA, encoding="utf-8")))
     prs = Presentation()
     prs.slide_width, prs.slide_height = px(1920), px(1080)
     for item in db["成語"]:
