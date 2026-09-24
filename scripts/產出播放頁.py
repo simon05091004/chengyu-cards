@@ -370,12 +370,23 @@ HTML_TEMPLATE = r"""<!doctype html>
     function buildDeck(){
       const list = IDIOMS.成語 || [];
       if (!list.length) return [];
-      const todayId = IDIOMS.今日編號;
-      let todayIdx = todayId ? list.findIndex(function(x){ return x.編號===todayId; }) : -1;
-      if (todayIdx < 0) todayIdx = list.length - 1;
+      // 今日成語的決定方式，依序：
+      //   1. 頂層「今日序號」（1 起算，對應標籤上的（一）（二）…）
+      //   2. 頂層「今日編號」（例如 "L01-02"）
+      //   3. 都沒設就用陣列最後一筆
+      let todayIdx = -1;
+      if (IDIOMS.今日序號) {
+        todayIdx = IDIOMS.今日序號 - 1;
+      } else if (IDIOMS.今日編號) {
+        todayIdx = list.findIndex(function(x){ return x.編號===IDIOMS.今日編號; });
+      }
+      if (todayIdx < 0 || todayIdx >= list.length) todayIdx = list.length - 1;
+
       const today = list[todayIdx];
       const tag = today.標籤 || "";
-      const others = list.filter(function(_,i){ return i!==todayIdx; });
+      // 複習只播「已經教過的」，也就是排在今日成語前面的那幾則；
+      // 後面還沒教到的不會出現，才不會提前曝光。
+      const others = list.slice(0, todayIdx);
       shuffle(others);
 
       const deck = [
@@ -571,9 +582,18 @@ def main():
     with open(DOCS_CFG, "w", encoding="utf-8") as f:
         json.dump(schedule, f, ensure_ascii=False, indent=2)
 
-    total = len(idioms.get("成語", []))
-    today = idioms.get("今日編號")
-    today_label = today if today else (idioms["成語"][-1]["編號"] + "（陣列最後一筆，預設）" if total else "（無資料）")
+    成語們 = idioms.get("成語", [])
+    total = len(成語們)
+    if idioms.get("今日序號"):
+        idx = idioms["今日序號"] - 1
+    elif idioms.get("今日編號"):
+        idx = next((i for i, x in enumerate(成語們) if x["編號"] == idioms["今日編號"]), total - 1)
+    else:
+        idx = total - 1
+    if total:
+        today_label = f"{成語們[idx]['標籤']} {成語們[idx]['成語']}（複習 {idx} 則）"
+    else:
+        today_label = "（無資料）"
     print(f"已產生播放頁，共 {total} 則成語")
     print(f"  本機版 → {OUT}")
     print(f"  線上版 → {DOCS_HTML}（推上 GitHub 後由 Pages 服務）")
