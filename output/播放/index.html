@@ -11,7 +11,7 @@
   }
   *{box-sizing:border-box;margin:0;padding:0;}
   html{
-    font-size: clamp(14px, 1.55vw, 27px);
+    font-size: clamp(16px, 2.0vw, 36px);
     background:var(--bg);
   }
   body{
@@ -22,17 +22,17 @@
     cursor:none;
   }
   body::before{
-    content:"";position:fixed;inset:1.4rem;
+    content:"";position:fixed;inset:1.4vh;
     border:2px solid var(--gold); opacity:.55; pointer-events:none; z-index:5;
   }
   body::after{
-    content:"";position:fixed;inset:1.9rem;
+    content:"";position:fixed;inset:2.1vh;
     border:1px solid var(--gold); opacity:.35; pointer-events:none; z-index:5;
   }
   .stage{
     position:absolute; inset:0;
     display:flex; flex-direction:column; justify-content:center;
-    padding: 7vh 8vw;
+    padding: 5vh 6vw;
     opacity:0; transition:opacity .5s ease;
   }
   .stage.show{ opacity:1; }
@@ -71,7 +71,7 @@
     padding:1rem 1.6rem; flex:1 1 40%;
   }
   .mchar{ font-size:2.3rem; font-weight:700; color:var(--red); }
-  .mdesc{ font-size:1.35rem; color:var(--ink); }
+  .mdesc{ font-size:1.5rem; color:var(--ink); }
 
   /* ---- 解釋 ---- */
   .block{ margin-bottom:1.8rem; }
@@ -97,11 +97,11 @@
   /* ---- 出處／近反義詞／易錯提醒 ---- */
   .chip-row{ display:flex; gap:2.6rem; margin-bottom:1.6rem; flex-wrap:wrap; }
   .chip-block{ flex:1 1 40%; }
-  .chips{ font-size:1.4rem; color:var(--ink); }
+  .chips{ font-size:1.5rem; color:var(--ink); }
   .warn{
     background:var(--warnbg); color:var(--warnfg);
     border-radius:1rem; padding:1.2rem 1.6rem;
-    font-size:1.3rem; line-height:1.6;
+    font-size:1.45rem; line-height:1.6;
   }
 
   /* ---- 複習分隔頁 ---- */
@@ -123,8 +123,8 @@
 
   /* ---- 底部進度條 ---- */
   .progressbar{
-    position:fixed; left:1.9rem; right:1.9rem; bottom:1.9rem;
-    height:.35rem; background:#EDE4D2; border-radius:999px; overflow:hidden; z-index:6;
+    position:fixed; left:2.1vh; right:2.1vh; bottom:2.1vh;
+    height:.5vh; background:#EDE4D2; border-radius:999px; overflow:hidden; z-index:6;
   }
   .progressbar-fill{ height:100%; width:0%; background:var(--gold); }
   .progressbar-fill.run{ transition:width linear; }
@@ -347,27 +347,55 @@
 
     // 字數多的成語（例如「醉翁之意不在酒」）或比較窄的螢幕，大字可能會超出畫面寬度。
     // 這裡量完真實寬度後按比例縮小，確保任何字數、任何解析度都不會被切到。
-    // 注意：剛換頁的那一個 frame 有時還沒完成版面配置，量到的寬度會是 0，
-    // 這時不能判定「沒有超出」，必須等下一個 frame 重量，否則會漏縮放。
-    function fitToWidth(attempt){
+    // 版面自動適配。兩件事：
+    //   1. 高度放不下 → 直接調小根字級（所有尺寸都是 rem，等於整頁等比縮小）
+    //   2. 大字列太寬 → 單獨把那一列 scale 縮小
+    // 先做高度再做寬度，順序不能反，因為縮字級會改變寬度。
+    //
+    // 注意：剛換頁的那一個 frame 有時還沒完成版面配置，量到的高度會是 0，
+    // 這時不能判定「放得下」，必須等下一輪重量，否則會漏縮。
+    function fitSlide(attempt){
       attempt = attempt || 0;
+
+      // 先還原成基準字級再量，否則會沿用上一頁縮小後的結果、愈縮愈小
+      document.documentElement.style.fontSize = "";
+
       const cs = getComputedStyle(stage);
-      const avail = stage.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
-      if (!(avail > 0)) return;
-      const targets = stage.querySelectorAll(".glyphs, .glyph-fallback .ch-line, .review-ch");
-      let notLaidOut = false;
-      targets.forEach(function(el){
+      const availH = stage.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+      const availW = stage.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+      const kids = stage.children;
+      if (!kids.length || !(availH > 0) || !(availW > 0)) return;
+
+      function contentHeight(){
+        const first = kids[0].getBoundingClientRect();
+        const last  = kids[kids.length - 1].getBoundingClientRect();
+        return last.bottom - first.top;
+      }
+
+      let h = contentHeight();
+      if (h === 0) {
+        if (attempt < 10) setTimeout(function(){ fitSlide(attempt + 1); }, 50);
+        return;
+      }
+
+      let size = parseFloat(getComputedStyle(document.documentElement).fontSize);
+      let guard = 0;
+      while (h > availH && guard < 30 && size > 12) {
+        size = size * 0.96;
+        document.documentElement.style.fontSize = size + "px";
+        h = contentHeight();
+        guard++;
+      }
+
+      const wide = stage.querySelectorAll(".glyphs, .glyph-fallback .ch-line, .review-ch");
+      wide.forEach(function(el){
         el.style.transform = "";
         const w = el.scrollWidth;
-        if (w === 0) { notLaidOut = true; return; }
-        if (w > avail) {
+        if (w > availW) {
           el.style.transformOrigin = "center center";
-          el.style.transform = "scale(" + (avail / w).toFixed(3) + ")";
+          el.style.transform = "scale(" + (availW / w).toFixed(3) + ")";
         }
       });
-      if (notLaidOut && attempt < 10) {
-        setTimeout(function(){ fitToWidth(attempt + 1); }, 50);
-      }
     }
 
     function fadeIn(html){
@@ -378,12 +406,12 @@
       // rAF 會停擺，.show 就永遠加不上去、畫面整片空白，而換頁的計時器還在跑。
       // setTimeout 在背景仍會執行，畫面不會卡在全黑。
       setTimeout(function(){
-        fitToWidth();
+        fitSlide();
         stage.classList.add("show");
       }, 20);
     }
 
-    window.addEventListener("resize", fitToWidth);
+    window.addEventListener("resize", function(){ fitSlide(); });
 
     function renderIdleScreen(reason){
       const startT = (SCHEDULE.播放時段 && SCHEDULE.播放時段.開始) || "07:30";
